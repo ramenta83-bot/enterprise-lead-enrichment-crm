@@ -107,8 +107,8 @@ function matecca_send_lead_to_azure() {
         wp_send_json_error(array('message' => 'Required parameters missing validation'), 400);
     }
 
-    // Secure Target: Hidden production Nginx HTTPS endpoint
-    $secure_azure_url = 'https://172.208.96';
+  // Secure Target: Absolute production Nginx HTTPS proxy route mapping path
+    $secure_azure_url = 'https://172.208.96.146/api/v1/leads';
     
     $json_payload = json_encode(array(
         'name'  => $name,
