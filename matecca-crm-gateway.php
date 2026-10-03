@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Matecca CRM Enterprise Gateway Bridge
- * Description: Hardened CRM-style server-side listener and script encapsulator for Azure REST API routing.
- * Version: 1.0.0
+ * Description: Hardened CRM-style server-side listener and script encapsulator utilizing an isolated static external stylesheet.
+ * Version: 2.2.0
  * Author: Matecca Industries
  */
 
@@ -10,14 +10,22 @@ if (!defined('ABSPATH')) {
     exit; // Prevent direct malicious access attempts
 }
 
-// 1. Enqueue and Encapsulate Frontend Scripts via WordPress Core
-add_action('wp_enqueue_scripts', 'matecca_enqueue_secure_crm_listener');
-function matecca_enqueue_secure_crm_listener() {
+// 1. Enqueue and Encapsulate Frontend Assets via WordPress Core
+add_action('wp_enqueue_scripts', 'matecca_enqueue_secure_crm_assets');
+function matecca_enqueue_secure_crm_assets() {
+    
+    // FETCH EXTERNAL STYLESHEET: Dynamically routes style.css from the plugin directory path
+    wp_enqueue_style(
+        'matecca-crm-external-styles', 
+        plugins_url('style.css', __FILE__), 
+        array(), 
+        '2.2.0'
+    );
+
     // Register a clean handle for our custom script process execution loop
-    wp_register_script('matecca-crm-listener', false, array(), '1.0.0', true);
+    wp_register_script('matecca-crm-listener', false, array(), '2.2.0', true);
     wp_enqueue_script('matecca-crm-listener');
 
-    // Secure Data Bridge: Pass local AJAX endpoint properties without exposing raw variables
     wp_localize_script('matecca-crm-listener', 'matecca_crm_config', array(
         'ajax_url' => admin_url('admin-ajax.php')
     ));
@@ -30,59 +38,101 @@ function matecca_enqueue_secure_crm_listener() {
         function initCRMFormListener() {
             const captureForm = document.querySelector('#native-lead-form');
             const responseAlert = document.querySelector('#form-response-message');
+            const btn = captureForm ? captureForm.querySelector('.crm-submit-btn') : null;
 
-            if (!captureForm) return;
+            if (!captureForm || !btn) return;
 
-            captureForm.addEventListener('submit', function (event) {
-                // Intercept default browser action to prevent full-page reloads
-                event.preventDefault(); 
+            // Gradient Hover Tracking Vector
+            btn.addEventListener('mousemove', (e) => {
+                const rect = btn.getBoundingClientRect();
+                btn.style.setProperty('--mouse-x', (e.clientX - rect.left) + 'px');
+                btn.style.setProperty('--mouse-y', (e.clientY - rect.top) + 'px');
+            });
 
-                if (responseAlert) {
-                    responseAlert.style.color = '#d97706'; // Amber processing status
-                    responseAlert.innerText = 'Synchronizing with secure CRM gateway...';
-                }
+            // Spatial Click Ripple Wave
+            btn.addEventListener('click', function(e) {
+                const ripple = document.createElement('span');
+                ripple.classList.add('crm-btn-ripple');
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = (e.clientX - rect.left - (size / 2)) + 'px';
+                ripple.style.top = (e.clientY - rect.top - (size / 2)) + 'px';
+                
+                const oldRipple = this.querySelector('.crm-btn-ripple');
+                if (oldRipple) oldRipple.remove();
+                this.appendChild(ripple);
+            });
 
-                // Bundle data parameters safely into a standard transmission envelope
-                const payloadEnvelope = new FormData();
-                payloadEnvelope.append('action', 'matecca_forward_lead'); // Hooks to our secure PHP action
-                payloadEnvelope.append('lead_name', document.querySelector('#lead-name').value);
-                payloadEnvelope.append('lead_email', document.querySelector('#lead-email').value);
+            // Form Submit Interceptor Loop
+// Form Submit Interceptor Loop
+captureForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    btn.disabled = true;
+    btn.classList.add('processing');
+    btn.innerText = 'Routing Data to Proxy...';
+    
+    if (responseAlert) {
+        responseAlert.style.color = '#d97706';
+        responseAlert.innerText = 'Synchronizing with secure CRM gateway...';
+    }
 
-                // Dynamically fetch localized routing configurations passed safely from the server layer
-                const endpointGateway = typeof matecca_crm_config !== 'undefined' ? matecca_crm_config.ajax_url : '/wp-admin/admin-ajax.php';
+    const payloadEnvelope = new FormData();
+    payloadEnvelope.append('action', 'matecca_forward_bulk_csv'); // New backend route hook target
+    
+    const fileInput = document.querySelector('#crm-csv-uploader');
+    if (fileInput && fileInput.files.length > 0) {
+        payloadEnvelope.append('leads_file', fileInput.files[0]); // Extracts raw binary CSV safely
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('processing');
+        btn.innerText = 'Submit to Cloud Engine';
+        if (responseAlert) {
+            responseAlert.style.color = '#dc2626';
+            responseAlert.innerText = 'Error: Please select a valid CSV file before uploading.';
+        }
+        return;
+    }
 
-                // Query the local server gateway instead of exposing Azure parameters to the public DOM
-                fetch(endpointGateway, {
-                    method: 'POST',
-                    body: payloadEnvelope
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error('Local gateway infrastructure fault');
-                    return response.json();
-                })
-                .then(result => {
-                    if (result.success) {
-                        console.log('CRM Synchronization Success:', result.data);
-                        if (responseAlert) {
-                            responseAlert.style.color = '#16a34a'; // Production green success code
-                            responseAlert.innerText = 'Success! Lead processed with score: ' + (result.data.score || 'Enriched');
-                        }
-                        captureForm.reset(); // Safely clear form properties for next submission
-                    } else {
-                        throw new Error(result.data.message || 'Pipeline data parsing conflict');
-                    }
-                })
-                .catch(error => {
-                    console.error('CRM Pipeline Execution Fault:', error);
-                    if (responseAlert) {
-                        responseAlert.style.color = '#dc2626'; // Error red
-                        responseAlert.innerText = 'Error syncing with system gateway. Check browser console.';
-                    }
-                });
+    const endpointGateway = typeof matecca_crm_config !== 'undefined' ? matecca_crm_config.ajax_url : '/wp-admin/admin-ajax.php';
+    
+    fetch(endpointGateway, {
+        method: 'POST',
+        body: payloadEnvelope
+    })
+    .then(response => response.json().then(json => {
+        if (!response.ok) {
+            throw new Error(json.data && json.data.message ? json.data.message : 'Local gateway infrastructure fault');
+        }
+        return json;
+    }))
+    .then(result => {
+        if (result.success) {
+            if (responseAlert) {
+                responseAlert.style.color = '#16a34a';
+                responseAlert.innerText = '✔ ' + result.data.message;
+            }
+            captureForm.reset();
+        } else {
+            throw new Error(result.data.message || 'Pipeline parsing collision');
+        }
+    })
+    .catch(error => {
+        if (responseAlert) {
+            responseAlert.style.color = '#dc2626';
+            responseAlert.innerText = error.message;
+        }
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.classList.remove('processing');
+        btn.innerText = 'Submit to Cloud Engine';
+    });
+});
+
             });
         }
 
-        // Validate execution safety thresholds based on active DOM ready states
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initCRMFormListener);
         } else {
@@ -99,7 +149,6 @@ add_action('wp_ajax_matecca_forward_lead', 'matecca_send_lead_to_azure');
 add_action('wp_ajax_nopriv_matecca_forward_lead', 'matecca_send_lead_to_azure');
 
 function matecca_send_lead_to_azure() {
-    // Sanitize parameters strictly on the internal PHP layer before transmitting over the web
     $name  = isset($_POST['lead_name']) ? sanitize_text_field($_POST['lead_name']) : '';
     $email = isset($_POST['lead_email']) ? sanitize_email($_POST['lead_email']) : '';
 
@@ -107,7 +156,6 @@ function matecca_send_lead_to_azure() {
         wp_send_json_error(array('message' => 'Required parameters missing validation'), 400);
     }
 
-  // Secure Target: Absolute production Nginx HTTPS proxy route mapping path
     $secure_azure_url = 'https://172.208.96.146/api/v1/leads';
     
     $json_payload = json_encode(array(
@@ -115,24 +163,83 @@ function matecca_send_lead_to_azure() {
         'email' => $email
     ));
 
-    // Execute isolated Server-to-Server transaction over HTTPS with custom auth headers
     $response = wp_remote_post($secure_azure_url, array(
         'timeout'   => 15,
-        'sslverify' => false, // Set to true once Let's Encrypt SSL domain is locked in
+        'sslverify' => false, 
         'headers'   => array(
             'Content-Type'      => 'application/json',
             'Accept'            => 'application/json',
-            'X-Matecca-API-Key' => 'MateccaSecretLiveToken2026_Secure' // Hidden bearer token core
+            'X-Matecca-API-Key' => 'MateccaSecretLiveToken2026_Secure' 
         ),
         'body'      => $json_payload
     ));
 
     if (is_wp_error($response)) {
-        wp_send_json_error(array('message' => 'API Cloud Target Connection Fault'), 500);
+        wp_send_json_error(array('message' => 'Azure VM Unreachable: ' . $response->get_error_message()), 500);
     }
 
-    $body_content = wp_remote_retrieve_body($response);
-    $data_payload = json_decode($body_content, true);
+    $response_code = wp_remote_retrieve_response_code($response);
+    $body_content  = wp_remote_retrieve_body($response);
+    $data_payload  = json_decode($body_content, true);
+
+    if ($response_code !== 200) {
+        $error_msg = isset($data_payload['message']) ? $data_payload['message'] : 'Backend pipeline fault';
+        wp_send_json_error(array('message' => "Cloud Error [HTTP $response_code]: " . $error_msg), $response_code);
+    }
+
+    wp_send_json_success($data_payload);
+}
+// 1. New Bulk CSV Server-Side Proxy Routing Action Links
+add_action('wp_ajax_matecca_forward_bulk_csv', 'matecca_send_bulk_csv_to_azure');
+add_action('wp_ajax_nopriv_matecca_forward_bulk_csv', 'matecca_send_bulk_csv_to_azure');
+
+// 2. The PHP Forwarding Function
+function matecca_send_bulk_csv_to_azure() {
+    if (!isset($_FILES['leads_file']) || empty($_FILES['leads_file']['name'])) {
+        wp_send_json_error(array('message' => 'Required CSV file payload missing validation'), 400);
+    }
+
+    $uploaded_file = $_FILES['leads_file'];
+
+    // Enforce MIME validation criteria to block shell injection vectors
+    $file_mime = mime_content_type($uploaded_file['tmp_name']);
+    $allowed_mimes = array('text/csv', 'text/plain', 'application/vnd.ms-excel');
+    if (!in_array($file_mime, $allowed_mimes)) {
+        wp_send_json_error(array('message' => 'Security Threat Blocked: Invalid file format schema.'), 400);
+    }
+
+    // Explicit cloud routing path target mapped through Nginx
+    $secure_azure_url = 'https://172.208.96.146/api/v1/leads/bulk-upload';
+    $is_local_env = (in_array($_SERVER['REMOTE_ADDR'], array('127.0.0.1', '::1')) || defined('WP_DEBUG') && WP_DEBUG);
+
+    // Assemble the isolated multipart stream envelope payload bounds
+    $response = wp_remote_post($secure_azure_url, array(
+        'timeout'   => 45, // Elevated timeout parameters to accommodate large multi-row files
+        'sslverify' => !$is_local_env, 
+        'headers'   => array(
+            'X-Matecca-API-Key' => defined('MATECCA_CRM_API_KEY') ? MATECCA_CRM_API_KEY : ''
+        ),
+        'body'      => array(
+            'leads_file' => curl_file_create(
+                $uploaded_file['tmp_name'],
+                $uploaded_file['type'],
+                $uploaded_file['name']
+            )
+        )
+    ));
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(array('message' => 'Azure VM Unreachable: ' . $response->get_error_message()), 500);
+    }
+
+    $response_code = wp_remote_retrieve_response_code($response);
+    $body_content  = wp_remote_retrieve_body($response);
+    $data_payload  = json_decode($body_content, true);
+
+    if ($response_code !== 200) {
+        $error_msg = isset($data_payload['message']) ? $data_payload['message'] : 'Backend bulk pipeline fault';
+        wp_send_json_error(array('message' => "Cloud Error [HTTP $response_code]: " . $error_msg), $response_code);
+    }
 
     wp_send_json_success($data_payload);
 }
