@@ -1,0 +1,15 @@
+[Unit]
+Description=Matecca Industries Production Flask REST API Daemon Service
+After=network.target mysql.service
+
+[Service]
+User=azureuser
+WorkingDirectory=/home/azureuser/python_api
+ExecStart=/home/azureuser/python_api/venv/bin/python /home/azureuser/python_api/main.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/azureuser/python_api/flask.log
+StandardError=append:/home/azureuser/python_api/flask.log
+
+[Install]
+WantedBy=multi-user.target
