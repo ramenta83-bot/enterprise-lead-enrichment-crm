@@ -58,6 +58,7 @@ lead_score	INT	Derived Property	None	Numeric grading value calculated by the bac
 created_at	TIMESTAMP	Temporal Metric	CURRENT_TIMESTAMP	System stamp registering the exact transaction runtime date and time.
 
 **3. Automation Processing Engine Workflow Logic**
+
 When an authenticated payload crosses the gateway perimeter, the Python microservice pipeline executes these exact transformation rules:
 [ Inbound Email Variable Passed ]
                │
