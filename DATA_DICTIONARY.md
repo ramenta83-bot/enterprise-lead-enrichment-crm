@@ -1,7 +1,9 @@
 Matecca Industries — Lead Enrichment & Custom CRM Engine
 Operational Runbook, API Data Schema & Database Dictionary
 This document serves as the technical single-source-of-truth for the data contracts, validation rules, payload shapes, and transactional schemas governing the Matecca Lead Enrichment pipeline.
-1. REST API Request/Response Data Contract
+
+**1. REST API Request/Response Data Contract**
+
 The Flask REST API strictly enforces an application/json payload constraint. URL parameters are systematically rejected to protect data integrity and prevent leakage in server access logs.
 Inbound Ingestion Payload Shape (POST /api/v1/leads)
 JSON Property Key	Variable Primitive	Input Classification	Validation Matrix / Constraints	Operational Purpose
@@ -39,7 +41,9 @@ json
   "message": "Required validation values missing"
 }
 Use code with caution.
-2. Production Database Schema & Field Matrix
+
+**2. Production Database Schema & Field Matrix**
+
 • Database Catalog Context: saas_crm
 • Target Management Engine: MySQL Server (Restricted to loopback socket 127.0.0.1)
 • Primary Relational Table Node: crm_leads
@@ -52,7 +56,8 @@ company	VARCHAR(100)	Derived Property	None	The computed corporate entity name ex
 industry	VARCHAR(100)	Derived Property	None	Categorical industry value mapped automatically based on enterprise classification routing boundaries.
 lead_score	INT	Derived Property	None	Numeric grading value calculated by the backend evaluation module rules.
 created_at	TIMESTAMP	Temporal Metric	CURRENT_TIMESTAMP	System stamp registering the exact transaction runtime date and time.
-3. Automation Processing Engine Workflow Logic
+
+**3. Automation Processing Engine Workflow Logic**
 When an authenticated payload crosses the gateway perimeter, the Python microservice pipeline executes these exact transformation rules:
 [ Inbound Email Variable Passed ]
                │
