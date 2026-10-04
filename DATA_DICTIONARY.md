@@ -75,10 +75,10 @@ When an authenticated payload crosses the gateway perimeter, the Python microser
        ▼                                 ▼              ▼                                ▼
 [ industry = "Unknown (Personal Email)" ] [ score = 10 ] [ industry = "B2B Tech Sector" ] [ score = 85 ]
 
-1. Brand Extraction Rule
+**1. Brand Extraction Rule**
 The pipeline splits the email variable string at the @ locator token to isolate the domain. It then clips the top domain suffix loop loopback block and invokes a .capitalize() constructor algorithm method to generate clean presentation records:
 • Example Input Input Property: test@acmelabs.com ➔ Extracted Field Map Value: Acmelabs
 
-2. Algorithmic Lead Value Assignment Matrix
+**2. Algorithmic Lead Value Assignment Matrix**  
 • Scenario Alpha (Low-Value Category): If the parsed domain matches consumer addresses (gmail.com, yahoo.com, or hotmail.com), it signals a non-enterprise client profile. The data processor overrides corporate lookups, logs "Unknown (Personal Email)", and records a core priority score of 10.
 • Scenario Beta (High-Value Category): If the domain falls outside consumer lists, the system assumes a corporate business lead profile. The engine categorizes the operational target as the "B2B Tech Sector" and elevates the lead profile rating to an immediate priority score of 85.
