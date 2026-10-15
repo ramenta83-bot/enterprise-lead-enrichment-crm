@@ -64,72 +64,94 @@ function matecca_enqueue_secure_crm_assets() {
                 this.appendChild(ripple);
             });
 
-            // Form Submit Interceptor Loop
-// Form Submit Interceptor Loop
-captureForm.addEventListener('submit', function (event) {
-    event.preventDefault();
-    btn.disabled = true;
-    btn.classList.add('processing');
-    btn.innerText = 'Routing Data to Proxy...';
-    
-    if (responseAlert) {
-        responseAlert.style.color = '#d97706';
-        responseAlert.innerText = 'Synchronizing with secure CRM gateway...';
-    }
+             // Form Submit Interceptor Loop
+            captureForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                btn.disabled = true;
+                btn.classList.add('processing');
+                btn.innerText = 'Routing Data...';
 
-    const payloadEnvelope = new FormData();
-    payloadEnvelope.append('action', 'matecca_forward_bulk_csv'); // New backend route hook target
-    
-    const fileInput = document.querySelector('#crm-csv-uploader');
-    if (fileInput && fileInput.files.length > 0) {
-        payloadEnvelope.append('leads_file', fileInput.files[0]); // Extracts raw binary CSV safely
-    } else {
-        btn.disabled = false;
-        btn.classList.remove('processing');
-        btn.innerText = 'Submit to Cloud Engine';
-        if (responseAlert) {
-            responseAlert.style.color = '#dc2626';
-            responseAlert.innerText = 'Error: Please select a valid CSV file before uploading.';
-        }
-        return;
-    }
+                const payloadEnvelope = new FormData();
+                const isUploadMode = document.getElementById('upload-doc')?.checked || document.querySelector('input[type=\"radio\"]:checked')?.value === 'upload';
 
-    const endpointGateway = typeof matecca_crm_config !== 'undefined' ? matecca_crm_config.ajax_url : '/wp-admin/admin-ajax.php';
-    
-    fetch(endpointGateway, {
-        method: 'POST',
-        body: payloadEnvelope
-    })
-    .then(response => response.json().then(json => {
-        if (!response.ok) {
-            throw new Error(json.data && json.data.message ? json.data.message : 'Local gateway infrastructure fault');
-        }
-        return json;
-    }))
-    .then(result => {
-        if (result.success) {
-            if (responseAlert) {
-                responseAlert.style.color = '#16a34a';
-                responseAlert.innerText = '✔ ' + result.data.message;
-            }
-            captureForm.reset();
-        } else {
-            throw new Error(result.data.message || 'Pipeline parsing collision');
-        }
-    })
-    .catch(error => {
-        if (responseAlert) {
-            responseAlert.style.color = '#dc2626';
-            responseAlert.innerText = error.message;
-        }
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.classList.remove('processing');
-        btn.innerText = 'Submit to Cloud Engine';
-    });
-});
+                if (isUploadMode) {
+                    // ─── ROUTE A: BULK CSV UPLOAD ───
+                    const fileInput = document.querySelector('#crm-csv-uploader');
+                    
+                    if (!fileInput || fileInput.files.length === 0) {
+                        btn.disabled = false;
+                        btn.classList.remove('processing');
+                        btn.innerText = 'Submit to Cloud Engine';
+                        if (responseAlert) {
+                            responseAlert.style.color = '#dc2626';
+                            responseAlert.innerText = 'Error: Please select a valid CSV file before uploading.';
+                        }
+                        return;
+                    }
 
+                    payloadEnvelope.append('action', 'matecca_forward_bulk_csv');
+                    payloadEnvelope.append('leads_file', fileInput.files.item(0));
+                    
+                } else {
+                    // ─── ROUTE B: SINGLE MANUAL ENTRY ───
+                    const nameVal = document.querySelector('#lead-name')?.value.trim();
+                    const emailVal = document.querySelector('#lead-email')?.value.trim();
+
+                    if (!nameVal || !emailVal) {
+                        btn.disabled = false;
+                        btn.classList.remove('processing');
+                        btn.innerText = 'Submit to Cloud Engine';
+                        if (responseAlert) {
+                            responseAlert.style.color = '#dc2626';
+                            responseAlert.innerText = 'Required parameters missing validation';
+                        }
+                        return;
+                    }
+
+                    payloadEnvelope.append('action', 'matecca_forward_lead');
+                    payloadEnvelope.append('lead_name', nameVal);
+                    payloadEnvelope.append('lead_email', emailVal);
+                }
+
+                const endpointGateway = typeof matecca_crm_config !== 'undefined' ? matecca_crm_config.ajax_url : '/wp-admin/admin-ajax.php';
+                
+                if (responseAlert) {
+                    responseAlert.style.color = '#d97706';
+                    responseAlert.innerText = 'Synchronizing with secure CRM gateway...';
+                }
+
+                fetch(endpointGateway, {
+                    method: 'POST',
+                    body: payloadEnvelope
+                })
+                .then(response => response.json().then(json => {
+                    if (!response.ok) {
+                        throw new Error(json.data && json.data.message ? json.data.message : 'Local gateway infrastructure fault');
+                    }
+                    return json;
+                }))
+                .then(result => {
+                    if (result.success) {
+                        if (responseAlert) {
+                            responseAlert.style.color = '#16a34a';
+                            responseAlert.innerText = '✔ ' + (result.data.message || 'Operation successful');
+                        }
+                        captureForm.reset();
+                    } else {
+                        throw new Error(result.data.message || 'Pipeline parsing collision');
+                    }
+                })
+                .catch(error => {
+                    if (responseAlert) {
+                        responseAlert.style.color = '#dc2626';
+                        responseAlert.innerText = error.message;
+                    }
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.classList.remove('processing');
+                    btn.innerText = 'Submit to Cloud Engine';
+                });
             });
         }
 
@@ -140,6 +162,7 @@ captureForm.addEventListener('submit', function (event) {
         }
     })(window, document);
     ";
+
 
     wp_add_inline_script('matecca-crm-listener', $secure_javascript_closure);
 }
@@ -157,6 +180,7 @@ function matecca_send_lead_to_azure() {
     }
 
     $secure_azure_url = 'https://172.208.96.146/api/v1/leads';
+    $is_local_env = (in_array($_SERVER['REMOTE_ADDR'], array('127.0.0.1', '::1')) || defined('WP_DEBUG') && WP_DEBUG);
     
     $json_payload = json_encode(array(
         'name'  => $name,
@@ -165,11 +189,11 @@ function matecca_send_lead_to_azure() {
 
     $response = wp_remote_post($secure_azure_url, array(
         'timeout'   => 15,
-        'sslverify' => false, 
+        'sslverify' => !$is_local_env, 
         'headers'   => array(
             'Content-Type'      => 'application/json',
             'Accept'            => 'application/json',
-            'X-Matecca-API-Key' => 'MateccaSecretLiveToken2026_Secure' 
+            'X-Matecca-API-Key' => defined('MATECCA_CRM_API_KEY') ? MATECCA_CRM_API_KEY : '' 
         ),
         'body'      => $json_payload
     ));
@@ -203,29 +227,36 @@ function matecca_send_bulk_csv_to_azure() {
 
     // Enforce MIME validation criteria to block shell injection vectors
     $file_mime = mime_content_type($uploaded_file['tmp_name']);
-    $allowed_mimes = array('text/csv', 'text/plain', 'application/vnd.ms-excel');
+    $allowed_mimes = array('text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/octet-stream');
     if (!in_array($file_mime, $allowed_mimes)) {
         wp_send_json_error(array('message' => 'Security Threat Blocked: Invalid file format schema.'), 400);
     }
 
-    // Explicit cloud routing path target mapped through Nginx
     $secure_azure_url = 'https://172.208.96.146/api/v1/leads/bulk-upload';
     $is_local_env = (in_array($_SERVER['REMOTE_ADDR'], array('127.0.0.1', '::1')) || defined('WP_DEBUG') && WP_DEBUG);
 
-    // Assemble the isolated multipart stream envelope payload bounds
+    // ─── 🚀 MANUALLY ASSEMBLE MULTIPART BOUNDARY PAYLOAD ───
+    $boundary = wp_generate_password(24);
+    $payload = '';
+
+    // Open file block envelope boundary
+    $payload .= '--' . $boundary . "\r\n";
+    $payload .= 'Content-Disposition: form-data; name="leads_file"; filename="' . basename($uploaded_file['name']) . '"' . "\r\n";
+    $payload .= 'Content-Type: text/csv' . "\r\n\r\n";
+    $payload .= file_get_contents($uploaded_file['tmp_name']);
+    $payload .= "\r\n";
+    
+    // Close multi-part boundary string container bounds
+    $payload .= '--' . $boundary . '--' . "\r\n";
+
     $response = wp_remote_post($secure_azure_url, array(
-        'timeout'   => 45, // Elevated timeout parameters to accommodate large multi-row files
+        'timeout'   => 45,
         'sslverify' => !$is_local_env, 
         'headers'   => array(
+            'Content-Type'      => 'multipart/form-data; boundary=' . $boundary,
             'X-Matecca-API-Key' => defined('MATECCA_CRM_API_KEY') ? MATECCA_CRM_API_KEY : ''
         ),
-        'body'      => array(
-            'leads_file' => curl_file_create(
-                $uploaded_file['tmp_name'],
-                $uploaded_file['type'],
-                $uploaded_file['name']
-            )
-        )
+        'body'      => $payload // Passes the raw manually constructed string stream envelope
     ));
 
     if (is_wp_error($response)) {
@@ -243,3 +274,4 @@ function matecca_send_bulk_csv_to_azure() {
 
     wp_send_json_success($data_payload);
 }
+
